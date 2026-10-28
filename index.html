@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tạo web thành app</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-512.png">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f2f2f7; color: #1c1c1e; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 22px; margin: 8px 0 4px; }
+  p.sub { color: #636366; font-size: 14px; line-height: 1.5; margin: 0 0 16px; }
+  .card { background: #fff; border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 6px; }
+  label:first-child { margin-top: 0; }
+  input[type="text"], input[type="url"] { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #d1d1d6; border-radius: 10px; }
+  input[type="file"] { width: 100%; font-size: 14px; }
+  .hint { color: #636366; font-size: 12px; line-height: 1.4; margin-top: 4px; }
+  .preview { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .preview img { width: 72px; height: 72px; border-radius: 16px; object-fit: cover; background: #f2f2f7; border: 1px solid #e5e5ea; }
+  button { width: 100%; padding: 14px; font-size: 17px; font-weight: 700; border: 0; border-radius: 12px; background: #007aff; color: #fff; margin-top: 16px; }
+  button:active { opacity: 0.8; }
+  button.secondary { background: #e5e5ea; color: #1c1c1e; }
+  .error { display: none; background: #ffecec; color: #b00020; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 12px; }
+  .result { display: none; }
+  .result code { word-break: break-all; font-size: 12px; background: #f2f2f7; padding: 2px 4px; border-radius: 4px; }
+  .result p { font-size: 14px; line-height: 1.6; margin: 6px 0; }
+  ol { font-size: 14px; line-height: 1.7; padding-left: 20px; margin: 8px 0; }
+  .note { font-size: 13px; color: #636366; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tạo web thành app</h1>
+  <p class="sub">Điền tên app, link web và chọn ảnh icon, trang này sẽ tự tạo file cấu hình (.mobileconfig) dạng Web Clip toàn màn hình, mở app sẽ không hiện thanh địa chỉ như Safari. Trang chạy hoàn toàn trên máy của anh, không gửi tên, link hay ảnh lên máy chủ nào.</p>
+
+  <div class="card">
+    <label for="appName">Tên app hiển thị *</label>
+    <input id="appName" type="text" placeholder="Ví dụ: Đăng &amp; Tuyết" autocomplete="off">
+    <div class="hint">Tên này sẽ hiện dưới icon ngoài màn hình chính, viết có dấu, có cách bình thường.</div>
+
+    <label for="appUrl">Link web *</label>
+    <input id="appUrl" type="url" inputmode="url" placeholder="Ví dụ: https://blvckd2096.github.io/DangTuyet/" autocomplete="off">
+    <div class="hint">Nếu anh nhập thiếu https:// thì trang sẽ tự thêm vào, vì link trong file cấu hình bắt buộc phải đầy đủ.</div>
+
+    <label for="appIcon">Ảnh icon (không bắt buộc)</label>
+    <input id="appIcon" type="file" accept="image/*">
+    <div class="hint">Nên dùng ảnh vuông cho đẹp. Trang sẽ tự cắt vuông và đổi về 512 x 512, định dạng PNG.</div>
+    <div class="preview">
+      <img id="iconPreview" alt="" style="display:none">
+      <span id="iconNote" class="note">Chưa chọn ảnh thì file vẫn cài được, iOS sẽ tự lấy icon của web.</span>
+    </div>
+
+    <label for="appOrg">Tổ chức (không bắt buộc)</label>
+    <input id="appOrg" type="text" value="Dương Đăng" autocomplete="off">
+    <div class="hint">Anh xóa đi nếu không muốn ghi tổ chức vào file.</div>
+
+    <div id="errorBox" class="error"></div>
+    <button id="btnCreate" type="button">Tạo file cấu hình</button>
+    <p class="note">Mỗi lần bấm Tạo, trang sẽ sinh 2 UUID mới hoàn toàn và mã identifier mới từ tên app, nên không trùng với app đã cài trước đó. Anh chỉ cần tải file mới nhất cho mỗi app.</p>
+  </div>
+
+  <div id="resultBox" class="card result">
+    <h2 style="font-size:18px;margin:0 0 8px">Đã tạo xong</h2>
+    <p>Tên hiển thị: <strong id="outName"></strong></p>
+    <p>Mã tự sinh: <code id="outCode"></code></p>
+    <p>Identifier: <code id="outId"></code></p>
+    <p>Link web: <code id="outUrl"></code></p>
+    <p>Tên file: <code id="outFile"></code></p>
+    <button id="btnDownload" type="button">Tải file .mobileconfig</button>
+    <p class="note">Nếu bấm Tạo lại, UUID sẽ đổi mới, anh dùng file mới nhất vừa tải, đừng cài file cũ chưa cài.</p>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:18px;margin:0 0 8px">Cách cài sau khi tải</h2>
+    <ol>
+      <li>Mở trang này bằng Safari, bấm Tạo rồi bấm Tải file.</li>
+      <li>Nếu Safari không tự mở màn hình cài đặt, anh mở app <strong>Tệp</strong>, vào mục <strong>Tải về</strong>, bấm vào file .mobileconfig vừa tải.</li>
+      <li>Vào <strong>Cài đặt, Cài đặt chung, VPN và Quản lý thiết bị</strong>, bấm vào cấu hình vừa tải.</li>
+      <li>Bấm <strong>Cài đặt</strong>, nhập mật khẩu iPhone nếu máy hỏi, rồi xác nhận <strong>Cài đặt</strong> lần nữa.</li>
+      <li>Icon sẽ hiện ngoài màn hình chính, bấm vào là mở web toàn màn hình.</li>
+    </ol>
+    <p class="note">Muốn gỡ app thì vào lại đúng màn hình cấu hình đó và bấm Xóa cấu hình, icon sẽ mất theo. Muốn dùng lại trang này lần sau cho nhanh, anh mở trang này bằng Safari rồi bấm Chia sẻ, Thêm vào Màn hình chính.</p>
+  </div>
+</div>
+
+<script>
+function escapeXml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+function toCode(name) {
+  var s = String(name).replace(/đ/g, 'd').replace(/Đ/g, 'D');
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  s = s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  if (!s) s = 'webapp';
+  if (/^[0-9]/.test(s)) s = 'app' + s;
+  return s;
+}
+function makeUuid() {
+  if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+  var a = new Uint8Array(16);
+  window.crypto.getRandomValues(a);
+  a[6] = (a[6] & 0x0f) | 0x40;
+  a[8] = (a[8] & 0x3f) | 0x80;
+  var h = Array.prototype.map.call(a, function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+}
+function normalizeUrl(u) {
+  var s = String(u).trim();
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  return s;
+}
+function wrapBase64(b64) {
+  var parts = String(b64).match(/.{1,76}/g) || [];
+  return parts.join('\n');
+}
+function loadImage(file) {
+  return new Promise(function(resolve, reject) {
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function() { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('load')); };
+    img.src = url;
+  });
+}
+function fileToBase64(file) {
+  return new Promise(function(resolve, reject) {
+    var r = new FileReader();
+    r.onload = function() { resolve(String(r.result).split(',')[1] || ''); };
+    r.onerror = function() { reject(new Error('read')); };
+    r.readAsDataURL(file);
+  });
+}
+async function processIcon(file) {
+  if (!file) return null;
+  try {
+    var img = await loadImage(file);
+    var canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 512;
+    var ctx = canvas.getContext('2d');
+    var side = Math.min(img.naturalWidth, img.naturalHeight);
+    var sx = (img.naturalWidth - side) / 2;
+    var sy = (img.naturalHeight - side) / 2;
+    ctx.drawImage(img, sx, sy, side, side, 0, 0, 512, 512);
+    var dataUrl = canvas.toDataURL('image/png');
+    var preview = document.getElementById('iconPreview');
+    preview.src = dataUrl; preview.style.display = 'block';
+    document.getElementById('iconNote').textContent = 'Đã cắt vuông 512 x 512, định dạng PNG.';
+    return dataUrl.split(',')[1];
+  } catch (e) {
+    return await fileToBase64(file);
+  }
+}
+
+var lastBlob = null;
+var lastFileName = '';
+document.getElementById('appIcon').addEventListener('change', async function(ev) {
+  var f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  try { await processIcon(f); } catch (e) {}
+});
+document.getElementById('btnCreate').addEventListener('click', async function() {
+  var err = document.getElementById('errorBox');
+  err.style.display = 'none'; err.textContent = '';
+  var name = document.getElementById('appName').value.trim();
+  var urlRaw = document.getElementById('appUrl').value.trim();
+  var org = document.getElementById('appOrg').value.trim();
+  if (!name) { err.textContent = 'Anh nhập tên app hiển thị trước đã.'; err.style.display = 'block'; document.getElementById('appName').focus(); return; }
+  if (!urlRaw) { err.textContent = 'Anh nhập link web trước đã.'; err.style.display = 'block'; document.getElementById('appUrl').focus(); return; }
+  var url = normalizeUrl(urlRaw);
+  var code = toCode(name);
+  var uuid1 = makeUuid();
+  var uuid2 = makeUuid();
+  var iconFile = document.getElementById('appIcon').files && document.getElementById('appIcon').files[0];
+  var iconBase64 = null;
+  try { iconBase64 = await processIcon(iconFile); } catch (e) { iconBase64 = null; }
+  var iconXml = '';
+  if (iconBase64) {
+    iconXml = '    <key>Icon</key>\n    <data>\n' + wrapBase64(iconBase64) + '\n    </data>\n';
+  }
+  var orgXmlTop = org ? '    <key>PayloadOrganization</key>\n    <string>' + escapeXml(org) + '</string>\n' : '';
+  var orgXmlClip = org ? '      <key>PayloadOrganization</key>\n      <string>' + escapeXml(org) + '</string>\n' : '';
+  var plist =
+'<?xml version="1.0" encoding="UTF-8"?>\n' +
+'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+'<plist version="1.0">\n' +
+'<dict>\n' +
+'  <key>PayloadContent</key>\n' +
+'  <array>\n' +
+'    <dict>\n' +
+'      <key>FullScreen</key>\n' +
+'      <true/>\n' +
+'      <key>IgnoreManifestScope</key>\n' +
+'      <true/>\n' +
+iconXml +
+'      <key>IsRemovable</key>\n' +
+'      <true/>\n' +
+'      <key>Label</key>\n' +
+'      <string>' + escapeXml(name) + '</string>\n' +
+'      <key>PayloadDescription</key>\n' +
+'      <string>Biến web thành ứng dụng</string>\n' +
+'      <key>PayloadDisplayName</key>\n' +
+'      <string>Web Clip (' + escapeXml(name) + ')</string>\n' +
+'      <key>PayloadIdentifier</key>\n' +
+'      <string>com.webclip.' + code + '.webclip</string>\n' +
+orgXmlClip +
+'      <key>PayloadType</key>\n' +
+'      <string>com.apple.webClip.managed</string>\n' +
+'      <key>PayloadUUID</key>\n' +
+'      <string>' + uuid1 + '</string>\n' +
+'      <key>PayloadVersion</key>\n' +
+'      <integer>1</integer>\n' +
+'      <key>Precomposed</key>\n' +
+'      <false/>\n' +
+'      <key>URL</key>\n' +
+'      <string>' + escapeXml(url) + '</string>\n' +
+'    </dict>\n' +
+'  </array>\n' +
+'  <key>PayloadDescription</key>\n' +
+'  <string>Biến web thành ứng dụng</string>\n' +
+'  <key>PayloadDisplayName</key>\n' +
+'  <string>' + escapeXml(name) + '</string>\n' +
+'  <key>PayloadIdentifier</key>\n' +
+'  <string>com.webclip.' + code + '</string>\n' +
+orgXmlTop +
+'  <key>PayloadRemovalDisallowed</key>\n' +
+'  <false/>\n' +
+'  <key>PayloadType</key>\n' +
+'  <string>Configuration</string>\n' +
+'  <key>PayloadUUID</key>\n' +
+'  <string>' + uuid2 + '</string>\n' +
+'  <key>PayloadVersion</key>\n' +
+'  <integer>1</integer>\n' +
+'</dict>\n' +
+'</plist>\n';
+  lastBlob = new Blob([plist], { type: 'application/x-apple-aspen-config' });
+  lastFileName = code + '.mobileconfig';
+  document.getElementById('outName').textContent = name;
+  document.getElementById('outCode').textContent = code;
+  document.getElementById('outId').textContent = 'com.webclip.' + code;
+  document.getElementById('outUrl').textContent = url;
+  document.getElementById('outFile').textContent = lastFileName;
+  document.getElementById('resultBox').style.display = 'block';
+  document.getElementById('btnDownload').textContent = 'Tải file ' + lastFileName;
+  document.getElementById('resultBox').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+document.getElementById('btnDownload').addEventListener('click', function() {
+  if (!lastBlob) return;
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(lastBlob);
+  a.download = lastFileName;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+});
+</script>
+</body>
+</html>
