@@ -28,6 +28,10 @@
   button.secondary { background: #e5e5ea; color: #1c1c1e; }
   .error { display: none; background: #ffecec; color: #b00020; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 12px; }
   .result { display: none; }
+  .install-panel { display: none; margin-top: 14px; border-top: 1px solid #e5e5ea; padding-top: 14px; }
+  .install-panel h3 { font-size: 17px; margin: 0 0 8px; }
+  .install-panel ol { margin: 8px 0; }
+  .install-panel button { margin-top: 10px; }
   .result code { word-break: break-all; font-size: 12px; background: #f2f2f7; padding: 2px 4px; border-radius: 4px; }
   .result p { font-size: 14px; line-height: 1.6; margin: 6px 0; }
   ol { font-size: 14px; line-height: 1.7; padding-left: 20px; margin: 8px 0; }
@@ -76,14 +80,27 @@
     <p>Link web: <code id="outUrl"></code></p>
     <p>Tên file: <code id="outFile"></code></p>
     <button id="btnDownload" type="button">Tải file .mobileconfig</button>
-    <p class="note">Nếu bấm Tạo lại, UUID sẽ đổi mới, anh dùng file mới nhất vừa tải, đừng cài file cũ chưa cài.</p>
+    <p class="note">Bấm nút trên sẽ mở bảng cài đặt cấu hình và nút Chia sẻ file ngay bên dưới. Nếu bấm Tạo lại, UUID sẽ đổi mới, anh dùng file mới nhất vừa tải, đừng cài file cũ chưa cài.</p>
+    <div id="installPanel" class="install-panel">
+      <h3>Cài đặt cấu hình</h3>
+      <p style="font-size:14px;line-height:1.6;margin:6px 0">File <strong id="installFileName"></strong> đã tạo xong cho app <strong id="installAppName"></strong>.</p>
+      <ol>
+        <li>Bấm <strong>Cài đặt ngay</strong> bên dưới, Safari sẽ hỏi tải cấu hình thì bấm <strong>Cho phép</strong>.</li>
+        <li>Vào <strong>Cài đặt, Cài đặt chung, VPN và Quản lý thiết bị</strong>, bấm vào cấu hình vừa tải rồi bấm <strong>Cài đặt</strong>.</li>
+        <li>Icon sẽ hiện ngoài màn hình chính, bấm vào là mở web toàn màn hình.</li>
+      </ol>
+      <button id="btnInstallNow" type="button">Cài đặt ngay</button>
+      <button id="btnShareFile" type="button" class="secondary">Chia sẻ file vừa tạo</button>
+      <button id="btnDownloadFallback" type="button" class="secondary">Tải về Tệp</button>
+      <p class="note">Nút Chia sẻ sẽ mở bảng Chia sẻ của iPhone để anh gửi file qua Zalo, AirDrop, Mail hoặc lưu vào Tệp. Web không tự mở được màn Cài đặt trong Cài đặt hệ thống, nên bước 2 vẫn phải bấm tay.</p>
+    </div>
   </div>
 
   <div class="card">
     <h2 style="font-size:18px;margin:0 0 8px">Cách cài sau khi tải</h2>
     <ol>
-      <li>Mở trang này bằng Safari, bấm Tạo rồi bấm Tải file.</li>
-      <li>Nếu Safari không tự mở màn hình cài đặt, anh mở app <strong>Tệp</strong>, vào mục <strong>Tải về</strong>, bấm vào file .mobileconfig vừa tải.</li>
+      <li>Mở trang này bằng Safari, bấm Tạo rồi bấm Tải file, bảng cài đặt sẽ hiện ra, bấm <strong>Cài đặt ngay</strong> rồi bấm <strong>Cho phép</strong> khi Safari hỏi.</li>
+      <li>Nếu Safari không tự mở màn hình cài đặt, anh bấm <strong>Chia sẻ file</strong> hoặc <strong>Tải về Tệp</strong> trong bảng cài đặt, rồi mở app <strong>Tệp</strong>, vào mục <strong>Tải về</strong>, bấm vào file .mobileconfig vừa tải.</li>
       <li>Vào <strong>Cài đặt, Cài đặt chung, VPN và Quản lý thiết bị</strong>, bấm vào cấu hình vừa tải.</li>
       <li>Bấm <strong>Cài đặt</strong>, nhập mật khẩu iPhone nếu máy hỏi, rồi xác nhận <strong>Cài đặt</strong> lần nữa.</li>
       <li>Icon sẽ hiện ngoài màn hình chính, bấm vào là mở web toàn màn hình.</li>
@@ -162,6 +179,43 @@ async function processIcon(file) {
 
 var lastBlob = null;
 var lastFileName = '';
+var lastBlobUrl = '';
+function makeBlobUrl() {
+  if (lastBlobUrl) { try { URL.revokeObjectURL(lastBlobUrl); } catch (e) {} }
+  lastBlobUrl = URL.createObjectURL(lastBlob);
+  setTimeout(function() { try { URL.revokeObjectURL(lastBlobUrl); } catch (e) {} }, 120000);
+  return lastBlobUrl;
+}
+function downloadCreatedFile() {
+  if (!lastBlob) return;
+  var a = document.createElement('a');
+  a.href = makeBlobUrl();
+  a.download = lastFileName;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { a.remove(); }, 2000);
+}
+function installCreatedFile() {
+  if (!lastBlob) return;
+  var a = document.createElement('a');
+  a.href = makeBlobUrl();
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { a.remove(); }, 2000);
+}
+async function shareCreatedFile() {
+  if (!lastBlob) return;
+  var file = new File([lastBlob], lastFileName, { type: 'application/x-apple-aspen-config' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: lastFileName, text: 'File cấu hình ' + lastFileName });
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+  }
+  downloadCreatedFile();
+}
 document.getElementById('appIcon').addEventListener('change', async function(ev) {
   var f = ev.target.files && ev.target.files[0];
   if (!f) return;
@@ -295,13 +349,15 @@ orgXmlTop +
 });
 document.getElementById('btnDownload').addEventListener('click', function() {
   if (!lastBlob) return;
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(lastBlob);
-  a.download = lastFileName;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  document.getElementById('installFileName').textContent = lastFileName;
+  document.getElementById('installAppName').textContent = document.getElementById('outName').textContent;
+  document.getElementById('installPanel').style.display = 'block';
+  document.getElementById('installPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(function() { installCreatedFile(); }, 300);
 });
+document.getElementById('btnInstallNow').addEventListener('click', function() { installCreatedFile(); });
+document.getElementById('btnShareFile').addEventListener('click', function() { shareCreatedFile(); });
+document.getElementById('btnDownloadFallback').addEventListener('click', function() { downloadCreatedFile(); });
 </script>
 </body>
 </html>
