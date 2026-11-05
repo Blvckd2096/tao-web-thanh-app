@@ -16,6 +16,9 @@
   label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 6px; }
   label:first-child { margin-top: 0; }
   input[type="text"], input[type="url"] { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #d1d1d6; border-radius: 10px; }
+  .url-row { display: flex; gap: 8px; align-items: stretch; }
+  .url-row input { flex: 1; min-width: 0; }
+  button.btn-paste { width: auto; flex: 0 0 auto; margin-top: 0; padding: 0 16px; font-size: 15px; background: #e5e5ea; color: #1c1c1e; white-space: nowrap; }
   input[type="file"] { width: 100%; font-size: 14px; }
   .hint { color: #636366; font-size: 12px; line-height: 1.4; margin-top: 4px; }
   .preview { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
@@ -42,8 +45,11 @@
     <div class="hint">Tên này sẽ hiện dưới icon ngoài màn hình chính, viết có dấu, có cách bình thường.</div>
 
     <label for="appUrl">Link web *</label>
-    <input id="appUrl" type="url" inputmode="url" placeholder="Ví dụ: https://blvckd2096.github.io/DangTuyet/" autocomplete="off">
-    <div class="hint">Nếu anh nhập thiếu https:// thì trang sẽ tự thêm vào, vì link trong file cấu hình bắt buộc phải đầy đủ.</div>
+    <div class="url-row">
+      <input id="appUrl" type="url" inputmode="url" placeholder="Ví dụ: https://blvckd2096.github.io/DangTuyet/" autocomplete="off">
+      <button id="btnPasteUrl" type="button" class="btn-paste">Dán</button>
+    </div>
+    <div class="hint">Bấm Dán để dán nhanh link vừa copy, không cần bấm giữ ô rồi chọn Dán. Nếu anh nhập thiếu https:// thì trang sẽ tự thêm vào, vì link trong file cấu hình bắt buộc phải đầy đủ.</div>
 
     <label for="appIcon">Ảnh icon (không bắt buộc)</label>
     <input id="appIcon" type="file" accept="image/*">
@@ -160,6 +166,47 @@ document.getElementById('appIcon').addEventListener('change', async function(ev)
   var f = ev.target.files && ev.target.files[0];
   if (!f) return;
   try { await processIcon(f); } catch (e) {}
+});
+document.getElementById('btnPasteUrl').addEventListener('click', async function() {
+  var btn = document.getElementById('btnPasteUrl');
+  var input = document.getElementById('appUrl');
+  var err = document.getElementById('errorBox');
+  var oldText = btn.textContent;
+  function flash(msg) {
+    btn.textContent = msg;
+    setTimeout(function() { btn.textContent = oldText; }, 1500);
+  }
+  err.style.display = 'none'; err.textContent = '';
+  try {
+    var text = '';
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      text = await navigator.clipboard.readText();
+    }
+    if (!text) {
+      input.focus();
+      try { document.execCommand('paste'); } catch (e) {}
+      text = input.value;
+      if (!text) {
+        err.textContent = 'Không đọc được link trong bộ nhớ tạm. Anh bấm giữ ô Link web rồi chọn Dán thủ công giúp em.';
+        err.style.display = 'block';
+        input.focus();
+        return;
+      }
+    }
+    text = String(text).trim().split(/\s+/)[0] || '';
+    if (!text) {
+      err.textContent = 'Bộ nhớ tạm đang trống, anh copy link trước rồi bấm Dán lại.';
+      err.style.display = 'block';
+      return;
+    }
+    input.value = text;
+    input.focus();
+    flash('Đã dán ✓');
+  } catch (e) {
+    input.focus();
+    err.textContent = 'iPhone chưa cho trang đọc bộ nhớ tạm. Anh bấm giữ ô Link web rồi chọn Dán thủ công giúp em.';
+    err.style.display = 'block';
+  }
 });
 document.getElementById('btnCreate').addEventListener('click', async function() {
   var err = document.getElementById('errorBox');
