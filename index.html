@@ -36,6 +36,12 @@
   .result p { font-size: 14px; line-height: 1.6; margin: 6px 0; }
   ol { font-size: 14px; line-height: 1.7; padding-left: 20px; margin: 8px 0; }
   .note { font-size: 13px; color: #636366; line-height: 1.5; }
+  .crop-wrap { display: none; position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; background: #000; border-radius: 16px; margin-top: 10px; touch-action: none; }
+  .crop-wrap img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; will-change: transform; }
+  .crop-frame { position: absolute; inset: 0; border: 2px solid #fff; border-radius: 16px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.45); pointer-events: none; }
+  .crop-controls { display: none; margin-top: 10px; }
+  .crop-controls input[type="range"] { width: 100%; }
+  .crop-controls button { margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -57,7 +63,16 @@
 
     <label for="appIcon">Ảnh icon (không bắt buộc)</label>
     <input id="appIcon" type="file" accept="image/*">
-    <div class="hint">Nên dùng ảnh vuông cho đẹp. Trang sẽ tự cắt vuông và đổi về 512 x 512, định dạng PNG.</div>
+    <div class="hint">Trang sẽ cắt ảnh thành hình vuông 512 x 512, định dạng PNG. Trước đây trang tự cắt ở giữa ảnh, giờ anh kéo ảnh trong khung để chọn đúng phần muốn lấy.</div>
+    <div id="cropWrap" class="crop-wrap">
+      <img id="cropImg" alt="">
+      <div class="crop-frame"></div>
+    </div>
+    <div id="cropControls" class="crop-controls">
+      <label for="cropZoom" style="margin-top:0">Phóng to / thu nhỏ</label>
+      <input id="cropZoom" type="range" min="1" max="3" step="0.01" value="1">
+      <button id="btnCropReset" type="button" class="secondary">Cắt lại ở giữa</button>
+    </div>
     <div class="preview">
       <img id="iconPreview" alt="" style="display:none">
       <span id="iconNote" class="note">Chưa chọn ảnh thì file vẫn cài được, iOS sẽ tự lấy icon của web.</span>
@@ -156,22 +171,73 @@ function fileToBase64(file) {
     r.readAsDataURL(file);
   });
 }
+var cropImgEl = null;
+var cropFile = null;
+var cropZoom = 1;
+var cropOx = 0;
+var cropOy = 0;
+var lastIconBase64 = null;
+function cropScale() {
+  if (!cropImgEl) return 1;
+  var wrap = document.getElementById('cropWrap');
+  var cw = wrap.clientWidth || 320;
+  return Math.max(cw / cropImgEl.naturalWidth, cw / cropImgEl.naturalHeight) * cropZoom;
+}
+function clampCrop() {
+  if (!cropImgEl) return;
+  var wrap = document.getElementById('cropWrap');
+  var cw = wrap.clientWidth || 320;
+  var s = cropScale();
+  var dw = cropImgEl.naturalWidth * s;
+  var dh = cropImgEl.naturalHeight * s;
+  cropOx = Math.min(0, Math.max(cw - dw, cropOx));
+  cropOy = Math.min(0, Math.max(cw - dh, cropOy));
+  if (dw <= cw) cropOx = (cw - dw) / 2;
+  if (dh <= cw) cropOy = (cw - dh) / 2;
+}
+function applyCrop() {
+  if (!cropImgEl) return null;
+  clampCrop();
+  var wrap = document.getElementById('cropWrap');
+  var cw = wrap.clientWidth || 320;
+  var s = cropScale();
+  var imgEl = document.getElementById('cropImg');
+  imgEl.style.transform = 'translate(' + cropOx + 'px,' + cropOy + 'px) scale(' + s + ')';
+  var sx = -cropOx / s;
+  var sy = -cropOy / s;
+  var size = cw / s;
+  var canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 512;
+  var ctx = canvas.getContext('2d');
+  ctx.drawImage(cropImgEl, sx, sy, size, size, 0, 0, 512, 512);
+  var dataUrl = canvas.toDataURL('image/png');
+  var preview = document.getElementById('iconPreview');
+  preview.src = dataUrl; preview.style.display = 'block';
+  document.getElementById('iconNote').textContent = 'Đã cắt vuông 512 x 512, định dạng PNG. Kéo ảnh trong khung hoặc chỉnh thanh phóng to để đổi phần lấy.';
+  lastIconBase64 = dataUrl.split(',')[1];
+  return lastIconBase64;
+}
+function initCrop(img, file) {
+  cropImgEl = img;
+  cropFile = file;
+  cropZoom = 1;
+  document.getElementById('cropZoom').value = '1';
+  var imgEl = document.getElementById('cropImg');
+  var url = URL.createObjectURL(file);
+  imgEl.onload = function() { URL.revokeObjectURL(url); };
+  imgEl.src = url;
+  document.getElementById('cropWrap').style.display = 'block';
+  document.getElementById('cropControls').style.display = 'block';
+  cropOx = 0; cropOy = 0;
+  applyCrop();
+}
 async function processIcon(file) {
   if (!file) return null;
+  if (file === cropFile && lastIconBase64) return lastIconBase64;
   try {
     var img = await loadImage(file);
-    var canvas = document.createElement('canvas');
-    canvas.width = 512; canvas.height = 512;
-    var ctx = canvas.getContext('2d');
-    var side = Math.min(img.naturalWidth, img.naturalHeight);
-    var sx = (img.naturalWidth - side) / 2;
-    var sy = (img.naturalHeight - side) / 2;
-    ctx.drawImage(img, sx, sy, side, side, 0, 0, 512, 512);
-    var dataUrl = canvas.toDataURL('image/png');
-    var preview = document.getElementById('iconPreview');
-    preview.src = dataUrl; preview.style.display = 'block';
-    document.getElementById('iconNote').textContent = 'Đã cắt vuông 512 x 512, định dạng PNG.';
-    return dataUrl.split(',')[1];
+    initCrop(img, file);
+    return lastIconBase64;
   } catch (e) {
     return await fileToBase64(file);
   }
@@ -221,6 +287,48 @@ document.getElementById('appIcon').addEventListener('change', async function(ev)
   if (!f) return;
   try { await processIcon(f); } catch (e) {}
 });
+(function() {
+  var wrap = document.getElementById('cropWrap');
+  var dragging = false;
+  var startX = 0, startY = 0, startOx = 0, startOy = 0;
+  wrap.addEventListener('pointerdown', function(ev) {
+    if (!cropImgEl) return;
+    dragging = true;
+    startX = ev.clientX; startY = ev.clientY;
+    startOx = cropOx; startOy = cropOy;
+    try { wrap.setPointerCapture(ev.pointerId); } catch (e) {}
+    ev.preventDefault();
+  });
+  wrap.addEventListener('pointermove', function(ev) {
+    if (!dragging || !cropImgEl) return;
+    cropOx = startOx + (ev.clientX - startX);
+    cropOy = startOy + (ev.clientY - startY);
+    applyCrop();
+  });
+  function endDrag() { dragging = false; }
+  wrap.addEventListener('pointerup', endDrag);
+  wrap.addEventListener('pointercancel', endDrag);
+  document.getElementById('cropZoom').addEventListener('input', function(ev) {
+    if (!cropImgEl) return;
+    var wrapEl = document.getElementById('cropWrap');
+    var cw = wrapEl.clientWidth || 320;
+    var oldS = cropScale();
+    var cx = (cw / 2 - cropOx) / oldS;
+    var cy = (cw / 2 - cropOy) / oldS;
+    cropZoom = parseFloat(ev.target.value) || 1;
+    var s = cropScale();
+    cropOx = cw / 2 - cx * s;
+    cropOy = cw / 2 - cy * s;
+    applyCrop();
+  });
+  document.getElementById('btnCropReset').addEventListener('click', function() {
+    if (!cropImgEl) return;
+    cropZoom = 1;
+    document.getElementById('cropZoom').value = '1';
+    cropOx = 0; cropOy = 0;
+    applyCrop();
+  });
+})();
 document.getElementById('btnPasteUrl').addEventListener('click', async function() {
   var btn = document.getElementById('btnPasteUrl');
   var input = document.getElementById('appUrl');
